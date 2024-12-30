@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Manager</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+    }
+    .btn {
+      background-color: #3b82f6;
+      color: #ffffff;
+      font-weight: bold;
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      transition: background-color 0.3s ease, transform 0.3s ease;
+    }
+    .btn:hover {
+      background-color: #1e40af;
+      transform: scale(1.05);
+    }
+    .btn-edit {
+      background-color: #f59e0b;
+    }
+    .btn-edit:hover {
+      background-color: #b45309;
+      transform: scale(1.05);
+    }
+    .btn-delete {
+      background-color: #ef4444;
+    }
+    .btn-delete:hover {
+      background-color: #b91c1c;
+      transform: scale(1.05);
+    }
+    .hidden {
+      display: none;
+    }
+    header {
+      background: linear-gradient(90deg, #3b82f6, #1e40af);
+      animation: fadeInDown 1s;
+    }
+    footer {
+      background: linear-gradient(90deg, #1e40af, #3b82f6);
+      animation: fadeInUp 1s;
+    }
+    .container {
+      animation: fadeIn 1s;
+    }
+    .task-item {
+      animation: fadeInLeft 0.5s;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+  <header class="bg-blue-600 text-white p-4 shadow-md">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-3xl font-bold">Task Manager</h1>
+    </div>
+  </header>
+  <main class="container mx-auto p-6 bg-white shadow-md rounded-lg mt-6">
+    <div id="root">
+      <h2 class="text-2xl font-bold mb-4">Tasks</h2>
+      <ul id="task-list" class="mb-4">
+        <!-- Task items will be dynamically added here -->
+      </ul>
+      <form id="task-form" class="flex space-x-2">
+        <input type="text" id="task-input" class="border p-2 flex-grow" placeholder="Add a new task">
+        <button type="submit" class="btn">Add Task</button>
+        <button id="update-task" type="button" class="btn hidden">Update Task</button>
+      </form>
+    </div>
+  </main>
+  <footer class="bg-gray-800 text-white p-4 mt-8">
+    <div class="container mx-auto text-center">
+      <p>&copy; 2023 Task Manager. All rights reserved.</p>
+    </div>
+  </footer>
+  <script>
+    let editingTask = null;
+
+    document.getElementById('task-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const taskInput = document.getElementById('task-input');
+      const taskList = document.getElementById('task-list');
+      const taskText = taskInput.value.trim();
+
+      if (taskText !== '') {
+        if (editingTask) {
+          // Update existing task
+          const taskId = editingTask.dataset.id;
+          fetch(`/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ title: taskText, completed: false })
+          })
+          .then(res => res.json())
+          .then(updatedTask => {
+            editingTask.querySelector('span').textContent = updatedTask.title;
+            document.getElementById('update-task').classList.add('hidden');
+            editingTask = null;
+          })
+          .catch(err => console.error(err));
+        } else {
+          // Add new task
+          fetch('/tasks', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ title: taskText, description: '', completed: false })
+          })
+          .then(res => res.json())
+          .then(newTask => {
+            const li = document.createElement('li');
+            li.className = 'flex justify-between items-center p-2 border-b task-item';
+            li.dataset.id = newTask._id;
+            li.innerHTML = `
+              <span>${newTask.title}</span>
+              <div>
+                <button class="btn btn-edit mr-2">Edit</button>
+                <button class="btn btn-delete">Delete</button>
+              </div>
+            `;
+            taskList.appendChild(li);
+          })
+          .catch(err => console.error(err));
+        }
+
+        taskInput.value = '';
+      }
+    });
+
+    document.getElementById('task-list').addEventListener('click', function(e) {
+      if (e.target.classList.contains('btn-delete')) {
+        const taskItem = e.target.closest('li');
+        const taskId = taskItem.dataset.id;
+        fetch(`/tasks/${taskId}`, {
+          method: 'DELETE',
+        })
+        .then(() => {
+          taskItem.remove();
+        })
+        .catch(err => console.error(err));
+      } else if (e.target.classList.contains('btn-edit')) {
+        const taskItem = e.target.closest('li');
+        const taskText = taskItem.querySelector('span').textContent;
+        const taskInput = document.getElementById('task-input');
+        taskInput.value = taskText;
+        document.getElementById('update-task').classList.remove('hidden');
+        editingTask = taskItem;
+      }
+    });
+
+    document.getElementById('update-task').addEventListener('click', function() {
+      const taskInput = document.getElementById('task-input');
+      const taskText = taskInput.value.trim();
+
+      if (taskText !== '' && editingTask) {
+        const taskId = editingTask.dataset.id;
+        fetch(`/tasks/${taskId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ title: taskText, completed: false })
+        })
+        .then(res => res.json())
+        .then(updatedTask => {
+          editingTask.querySelector('span').textContent = updatedTask.title;
+          document.getElementById('update-task').classList.add('hidden');
+          taskInput.value = '';
+          editingTask = null;
+        })
+        .catch(err => console.error(err));
+      }
+    });
+  </script>
+</body>
+</html>
+
